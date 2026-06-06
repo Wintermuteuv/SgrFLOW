@@ -1,0 +1,5 @@
+- [Роль пользователя](user_role.md) — Иван, Delivery-direction в Sergek; рабочий язык русский, управленческая перспектива.
+- [Delivery reporting initiative](project_delivery_reporting.md) — единая отчётность по 4 командам блока разработки; VMS уже сделана, ещё 3 на подходе.
+- [Структура отчёта направления](feedback_report_structure.md) — каркас executive (1-2 стр) + технический (детальный) отчёт; единый формат для всех команд.
+- [Рабочая папка и шаблоны](reference_delivery_workspace.md) — где лежат итоговые .docx, шаблон с плейсхолдерами и скрипты сборки.
+- [Доступ к Jira/GitLab Sergek через Chrome MCP](reference_jira_gitlab_apis.md) — рабочие REST endpoint'ы и грабли при извлечении данных.
