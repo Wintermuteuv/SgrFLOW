@@ -141,21 +141,6 @@ function buildData(f){
   };
 }
 
-function mkLabel(node){
-  const cv=document.createElement('canvas');
-  cv.width=256;cv.height=64;
-  const ctx=cv.getContext('2d');
-  ctx.fillStyle=T[node.type].c+'cc';
-  ctx.font='bold 26px -apple-system,sans-serif';
-  ctx.textAlign='center';
-  ctx.fillText(node.name,128,42);
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
-  const r=Math.pow(node.priority||2,1.4)*2.2;
-  sp.scale.set(r*5.5,r*1.5,1);
-  sp.position.set(0,r+5,0);
-  return sp;
-}
-
 function initGraph(data){
   document.getElementById('graph').innerHTML='';
   graph=ForceGraph3D()(document.getElementById('graph'))
@@ -165,16 +150,6 @@ function initGraph(data){
     .nodeVal(n=>Math.pow(n.priority||2,1.4)*2.2)
     .nodeColor(n=>T[n.type].c)
     .nodeLabel(n=>`${T[n.type].i} ${n.name}`)
-    .nodeThreeObject(node=>{
-      const g=new THREE.Group();
-      const r=Math.pow(node.priority||2,1.4)*2.2;
-      g.add(new THREE.Mesh(
-        new THREE.SphereGeometry(r,20,20),
-        new THREE.MeshPhongMaterial({color:new THREE.Color(T[node.type].c),transparent:true,opacity:0.85,shininess:60})
-      ));
-      g.add(mkLabel(node));
-      return g;
-    })
     .linkColor(()=>'rgba(255,255,255,0.18)')
     .linkWidth(0.8)
     .linkDirectionalParticles(1)
