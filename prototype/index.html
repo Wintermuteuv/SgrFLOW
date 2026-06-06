@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SgrFLOW — Knowledge Graph</title>
+  <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.0/dist/3d-force-graph.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --border: rgba(255,255,255,0.1);
+      --text: #e8eaf0; --muted: #8b8fa8;
+      --p: #7F77DD; --g: #1D9E75; --o: #D85A30;
+    }
+    body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+    .logo { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+    .logo span { color: var(--p); }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn { font-size: 12px; padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .filter-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text); }
+    .filter-btn.active { background: var(--p); border-color: var(--p); color: #fff; }
+    .filter-btn.active.proj { background: var(--o); border-color: var(--o); }
+    .filter-btn.active.prod { background: var(--g); border-color: var(--g); }
+    .hint { margin-left: auto; font-size: 11px; color: var(--muted); }
+    #gc { flex: 1; position: relative; overflow: hidden; }
+    #graph { width: 100%; height: 100%; }
+    .legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
+    .li { display: flex; align-items: center; gap: 6px; }
+    .ld { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    #info { position: absolute; top: 16px; right: 16px; width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: none; }
+    .ih { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .it { font-size: 15px; font-weight: 600; }
+    .im { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .cb { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px; }
+    .cb:hover { color: var(--text); }
+    .is { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+    .is strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: var(--muted); font-weight: 500; }
+    .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin: 2px 2px 2px 0; background: rgba(255,255,255,0.07); color: var(--text); }
+    .pb { display: flex; gap: 3px; margin-top: 4px; }
+    .pp { width: 20px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); }
+    .pp.on { background: var(--p); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">Sgr<span>FLOW</span></div>
+  <div class="filters">
+    <button class="filter-btn active"     id="btn-all"     onclick="filterType('all')">Все</button>
+    <button class="filter-btn"            id="btn-person"  onclick="filterType('person')">👤 Люди</button>
+    <button class="filter-btn proj"       id="btn-project" onclick="filterType('project')">🔧 Проекты</button>
+    <button class="filter-btn prod"       id="btn-product" onclick="filterType('product')">📦 Продукты</button>
+  </div>
+  <div class="hint">Drag — вращение &nbsp;·&nbsp; Scroll — зум &nbsp;·&nbsp; Клик — детали</div>
+</header>
+<div id="gc">
+  <div id="graph"></div>
+  <div class="legend">
+    <div class="li"><div class="ld" style="background:#7F77DD"></div>Люди</div>
+    <div class="li"><div class="ld" style="background:#1D9E75"></div>Продукты</div>
+    <div class="li"><div class="ld" style="background:#D85A30"></div>Проекты</div>
+    <div class="li" style="margin-left:8px;font-size:11px">Размер = приоритет</div>
+  </div>
+  <div id="info">
+    <div class="ih">
+      <div><div class="it" id="ititle"></div><div class="im" id="imeta"></div></div>
+      <button class="cb" onclick="closeInfo()">×</button>
+    </div>
+    <div class="is"><strong>Приоритет</strong><div class="pb" id="ipri"></div></div>
+    <div class="is"><strong>Связи</strong><div id="ilinks"></div></div>
+  </div>
+</div>
+<script>
+const T={person:{c:'#7F77DD',i:'👤'},product:{c:'#1D9E75',i:'📦'},project:{c:'#D85A30',i:'🔧'}};
+const NODES=[
+  {id:'ivan',   name:'Иван',         type:'person', dept:'Delivery',  priority:5},
+  {id:'aliya',  name:'Алия',         type:'person', dept:'Product',   priority:4},
+  {id:'damir',  name:'Дамир',        type:'person', dept:'Dev',       priority:4},
+  {id:'nurlan', name:'Нурлан',       type:'person', dept:'Dev',       priority:3},
+  {id:'zarina', name:'Зарина',       type:'person', dept:'QA',        priority:3},
+  {id:'asel',   name:'Асель',        type:'person', dept:'Analytics', priority:3},
+  {id:'bekzat', name:'Бекзат',       type:'person', dept:'Dev',       priority:2},
+  {id:'ainur',  name:'Айнур',        type:'person', dept:'Design',    priority:2},
+  {id:'vms',      name:'VMS',          type:'product',domain:'Traffic',  priority:5},
+  {id:'delivery', name:'Delivery Hub', type:'product',domain:'Logistics',priority:4},
+  {id:'analytics',name:'Analytics',    type:'product',domain:'Data',     priority:3},
+  {id:'mobile',   name:'Mobile App',   type:'product',domain:'Client',   priority:4},
+  {id:'p1',name:'Отчётность Q2',type:'project',status:'active',  priority:5},
+  {id:'p2',name:'API Gateway',  type:'project',status:'active',  priority:4},
+  {id:'p3',name:'ML Pipeline',  type:'project',status:'planned', priority:3},
+  {id:'p4',name:'Redesign UI',  type:'project',status:'active',  priority:3},
+  {id:'p5',name:'Мониторинг',   type:'project',status:'active',  priority:4},
+  {id:'p6',name:'Auth 2.0',     type:'project',status:'planned', priority:2},
+];
+const LINKS=[
+  {source:'ivan',    target:'p1',       label:'владелец'},
+  {source:'ivan',    target:'delivery', label:'отвечает'},
+  {source:'aliya',   target:'p1',       label:'PM'},
+  {source:'aliya',   target:'mobile',   label:'PM'},
+  {source:'damir',   target:'p2',       label:'тимлид'},
+  {source:'damir',   target:'vms',      label:'разработка'},
+  {source:'nurlan',  target:'p2',       label:'разработчик'},
+  {source:'nurlan',  target:'p3',       label:'разработчик'},
+  {source:'zarina',  target:'p1',       label:'QA'},
+  {source:'zarina',  target:'p4',       label:'QA'},
+  {source:'asel',    target:'p3',       label:'аналитик'},
+  {source:'asel',    target:'analytics',label:'владелец'},
+  {source:'bekzat',  target:'p6',       label:'разработчик'},
+  {source:'ainur',   target:'p4',       label:'дизайнер'},
+  {source:'p1',      target:'delivery', label:'для'},
+  {source:'p2',      target:'vms',      label:'для'},
+  {source:'p2',      target:'delivery', label:'для'},
+  {source:'p3',      target:'analytics',label:'для'},
+  {source:'p4',      target:'mobile',   label:'для'},
+  {source:'p5',      target:'vms',      label:'для'},
+  {source:'p5',      target:'delivery', label:'для'},
+  {source:'p6',      target:'mobile',   label:'для'},
+  {source:'vms',     target:'delivery', label:'интеграция'},
+  {source:'analytics',target:'delivery',label:'данные'},
+];
+
+let graph;
+const gc=document.getElementById('gc');
+
+function buildData(f){
+  let ids=new Set();
+  if(f==='all'){NODES.forEach(n=>ids.add(n.id));}
+  else{
+    NODES.forEach(n=>{if(n.type===f)ids.add(n.id);});
+    LINKS.forEach(l=>{
+      const s=l.source.id||l.source,t=l.target.id||l.target;
+      if(ids.has(s)||ids.has(t)){ids.add(s);ids.add(t);}
+    });
+  }
+  return{
+    nodes:NODES.filter(n=>ids.has(n.id)).map(n=>({...n})),
+    links:LINKS.filter(l=>{
+      const s=l.source.id||l.source,t=l.target.id||l.target;
+      return ids.has(s)&&ids.has(t);
+    }).map(l=>({...l})),
+  };
+}
+
+function mkLabel(node){
+  const cv=document.createElement('canvas');
+  cv.width=256;cv.height=64;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle=T[node.type].c+'cc';
+  ctx.font='bold 26px -apple-system,sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText(node.name,128,42);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false}));
+  const r=Math.pow(node.priority||2,1.4)*2.2;
+  sp.scale.set(r*5.5,r*1.5,1);
+  sp.position.set(0,r+5,0);
+  return sp;
+}
+
+function initGraph(data){
+  document.getElementById('graph').innerHTML='';
+  graph=ForceGraph3D()(document.getElementById('graph'))
+    .graphData(data)
+    .backgroundColor('#0f1117')
+    .width(gc.offsetWidth).height(gc.offsetHeight)
+    .nodeVal(n=>Math.pow(n.priority||2,1.4)*2.2)
+    .nodeColor(n=>T[n.type].c)
+    .nodeLabel(n=>`${T[n.type].i} ${n.name}`)
+    .nodeThreeObject(node=>{
+      const g=new THREE.Group();
+      const r=Math.pow(node.priority||2,1.4)*2.2;
+      g.add(new THREE.Mesh(
+        new THREE.SphereGeometry(r,20,20),
+        new THREE.MeshPhongMaterial({color:new THREE.Color(T[node.type].c),transparent:true,opacity:0.85,shininess:60})
+      ));
+      g.add(mkLabel(node));
+      return g;
+    })
+    .linkColor(()=>'rgba(255,255,255,0.18)')
+    .linkWidth(0.8)
+    .linkDirectionalParticles(1)
+    .linkDirectionalParticleSpeed(0.005)
+    .linkDirectionalParticleWidth(1.5)
+    .linkDirectionalParticleColor(()=>'rgba(255,255,255,0.5)')
+    .onNodeClick(node=>showInfo(node,data));
+  graph.d3Force('charge').strength(-140);
+  graph.d3Force('link').distance(85);
+}
+
+function showInfo(node,data){
+  document.getElementById('ititle').textContent=`${T[node.type].i} ${node.name}`;
+  document.getElementById('imeta').textContent=`${node.type} · ${node.dept||node.domain||node.status||''}`;
+  const pb=document.getElementById('ipri');
+  pb.innerHTML='';
+  for(let i=1;i<=5;i++){
+    const d=document.createElement('div');
+    d.className='pp'+(i<=(node.priority||0)?' on':'');
+    if(i<=(node.priority||0))d.style.background=T[node.type].c;
+    pb.appendChild(d);
+  }
+  const cl=data.links.filter(l=>{
+    const s=l.source.id||l.source,t=l.target.id||l.target;
+    return s===node.id||t===node.id;
+  });
+  const el=document.getElementById('ilinks');
+  el.innerHTML='';
+  cl.forEach(l=>{
+    const oid=(l.source.id||l.source)===node.id?(l.target.id||l.target):(l.source.id||l.source);
+    const o=NODES.find(n=>n.id===oid);
+    if(!o)return;
+    const tag=document.createElement('span');
+    tag.className='tag';
+    tag.style.borderLeft=`3px solid ${T[o.type].c}`;
+    tag.textContent=`${T[o.type].i} ${o.name} · ${l.label}`;
+    el.appendChild(tag);
+  });
+  document.getElementById('info').style.display='block';
+}
+
+function closeInfo(){document.getElementById('info').style.display='none';}
+function filterType(f){
+  ['all','person','project','product'].forEach(t=>{
+    document.getElementById('btn-'+t).classList.toggle('active',t===f);
+  });
+  closeInfo();
+  initGraph(buildData(f));
+}
+window.filterType=filterType;
+window.closeInfo=closeInfo;
+window.addEventListener('load',()=>{
+  initGraph(buildData('all'));
+  window.addEventListener('resize',()=>{if(graph){graph.width(gc.offsetWidth);graph.height(gc.offsetHeight);}});
+});
+</script>
+</body>
+</html>
